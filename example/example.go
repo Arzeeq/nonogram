@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"nonogram"
 	"time"
+
+	"github.com/Arzeeq/nonogram"
 )
 
 func main() {

@@ -5,10 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"nonogram"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/Arzeeq/nonogram"
 )
 
 func main() {

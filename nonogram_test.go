@@ -2,8 +2,9 @@ package nonogram_test
 
 import (
 	"math/rand"
-	"nonogram"
 	"testing"
+
+	"github.com/Arzeeq/nonogram"
 
 	"github.com/stretchr/testify/require"
 )

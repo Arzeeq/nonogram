@@ -1,4 +1,4 @@
-module nonogram
+module github.com/Arzeeq/nonogram
 
 go 1.23.1
 
