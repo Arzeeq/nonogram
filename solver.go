@@ -2,6 +2,10 @@ package nonogram
 
 import (
 	"errors"
+	"image"
+	"image/color"
+	"image/png"
+	"os"
 	"strings"
 )
 
@@ -14,7 +18,8 @@ const (
 )
 
 var ErrNilPattern = errors.New("called solve with nil pattern")
-var ErrCanNotSolve = errors.New("could not solve puzzle completely")
+var ErrContradiction = errors.New("found contradiction")
+var ErrCanNotSolve = errors.New("can not solve this puzzle completely")
 
 type Solver struct {
 	n, m    int
@@ -37,18 +42,65 @@ func (s *Solver) Solve(rows FillPattern, columns FillPattern) error {
 		s.grid[i] = make([]State, s.m)
 	}
 
-	for s.tryRows() != 0 || s.tryColumns() != 0 {
-
-	}
-
-	if s.isSolved() {
-		return nil
-	}
-
-	return ErrCanNotSolve
+	return s.solve()
 }
 
-func (s *Solver) tryRows() int {
+func (s *Solver) solve() error {
+	for {
+		rowChanges, err := s.tryRows()
+		if err != nil {
+			return err
+		}
+
+		columnChanges, err := s.tryColumns()
+		if err != nil {
+			return err
+		}
+
+		if rowChanges == 0 && columnChanges == 0 {
+			if s.isSolved() {
+				return nil
+			}
+
+			if !s.tryToGuess() {
+				return ErrCanNotSolve
+			} else {
+				return nil
+			}
+		}
+	}
+}
+
+// this function tries to Fill all unknown cells from the grid
+// and check if contradiction is occured
+func (s *Solver) tryToGuess() bool {
+	for i := range s.n {
+		for j := range s.m {
+			if s.grid[i][j] != Unknown {
+				continue
+			}
+
+			newSolver := copySolver(s)
+			newSolver.grid[i][j] = Filled
+			if err := newSolver.solve(); err != nil {
+				continue
+			}
+
+			for i1 := range s.n {
+				for j1 := range s.m {
+					s.grid[i1][j1] = newSolver.grid[i1][j1]
+				}
+			}
+
+			return s.isSolved()
+		}
+	}
+
+	return false
+}
+
+// returns count of changes done and error if contradiction is found
+func (s *Solver) tryRows() (int, error) {
 	changesCount := 0
 
 	row := make([]State, s.n)
@@ -80,6 +132,10 @@ func (s *Solver) tryRows() int {
 			}
 		}
 
+		if varCount == 0 {
+			return 0, ErrContradiction
+		}
+
 		for column := range rowFills {
 			if rowFills[column] == varCount && s.grid[rowIdx][column] == Unknown {
 				s.grid[rowIdx][column] = Filled
@@ -90,10 +146,11 @@ func (s *Solver) tryRows() int {
 			}
 		}
 	}
-	return changesCount
+	return changesCount, nil
 }
 
-func (s *Solver) tryColumns() int {
+// returns count of changes done and error if contradiction is found
+func (s *Solver) tryColumns() (int, error) {
 	changesCount := 0
 
 	column := make([]State, s.m)
@@ -125,6 +182,10 @@ func (s *Solver) tryColumns() int {
 			}
 		}
 
+		if varCount == 0 {
+			return 0, ErrContradiction
+		}
+
 		for row := range columnFills {
 			if columnFills[row] == varCount && s.grid[row][columnIdx] == Unknown {
 				s.grid[row][columnIdx] = Filled
@@ -135,7 +196,7 @@ func (s *Solver) tryColumns() int {
 			}
 		}
 	}
-	return changesCount
+	return changesCount, nil
 }
 
 // this function fills [arr] array with unbroken blocks
@@ -221,4 +282,76 @@ func (s *Solver) StringCaged(cage int) string {
 
 func (s *Solver) PrettyStringCaged(cage int) string {
 	return s.toString('█', '╳', ' ', cage)
+}
+
+// When solver saves png, it paints cells in black if it's Filled,
+// in white if it's Blank and in red if it's Unknown
+func (s *Solver) SavePNG(name string, scale int) error {
+	img := image.NewRGBA(image.Rect(0, 0, s.m*scale, s.n*scale))
+
+	for i := 0; i < s.n*scale; i++ {
+		for j := 0; j < s.m*scale; j++ {
+			var c color.RGBA
+			if s.grid[i/scale][j/scale] == Filled {
+				c = color.RGBA{0, 0, 0, 255}
+			} else if s.grid[i/scale][j/scale] == Blank {
+				c = color.RGBA{255, 255, 255, 255}
+			} else {
+				c = color.RGBA{255, 0, 0, 255}
+			}
+			img.Set(j, i, c)
+		}
+	}
+
+	f, err := os.Create(name)
+	if err != nil {
+		return err
+	}
+
+	if err := png.Encode(f, img); err != nil {
+		f.Close()
+		return err
+	}
+
+	if err := f.Close(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Solver) ToNonogram() *Nonogram {
+	nono := New(s.n, s.m)
+
+	for i := 0; i < s.n; i++ {
+		for j := 0; j < s.m; j++ {
+			if s.grid[i][j] == Filled {
+				nono.Fill(i, j)
+			}
+		}
+	}
+
+	return nono
+}
+
+func copySolver(s *Solver) *Solver {
+	newSolver := Solver{
+		n:       s.n,
+		m:       s.m,
+		rows:    s.rows,
+		columns: s.columns,
+		grid:    make([][]State, s.n),
+	}
+
+	for i := range s.n {
+		newSolver.grid[i] = make([]State, s.m)
+	}
+
+	for i := range s.n {
+		for j := range s.m {
+			newSolver.grid[i][j] = s.grid[i][j]
+		}
+	}
+
+	return &newSolver
 }

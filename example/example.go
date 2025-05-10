@@ -73,18 +73,17 @@ func main() {
 		{4},
 	}
 
-	t1 := time.Now()
+	start := time.Now()
+
 	var s nonogram.Solver
 	err := s.Solve(rows, columns)
 	if err != nil {
 		fmt.Println(err.Error())
 	}
+	fmt.Printf("solving nonogram took %s time\n", time.Since(start))
+
+	// show solving result
 	fmt.Println(s.StringCaged(5))
-	t2 := time.Now()
-
-	fmt.Println(t2.Sub(t1))
-
-	// todo:
-	// 1) add solver from FillPatterns
-	// 2) add nonogram.SavePNG
+	// save result to png
+	s.SavePNG("output.png", 10)
 }
